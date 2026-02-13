@@ -8,12 +8,56 @@ import { ProjectMember } from "../models/projectmember.model.js";
 import { UserRolesEnum } from "../utils/constatns.js";
 
 export const getProjects = asyncHandler(async (req, res) => {
-  const userId = req.user._id;
-  try {
-    const projects = await Project.find({ createdBy: userId });
-    res.json(apiResponse(true, "Projects retrieved successfully", projects));
-  } catch (error) {
-    res.json(apiResponse(false, "Failed to retrieve projects", null));
+  try{
+  const projects = await ProjectMember.aggregate([
+    {
+      $match: {user: new mongoose.Types.ObjectId(req.user._id) },
+    },
+    {
+      $lookup:{
+        from: "projects",
+        localField: "projects",
+        foreignField: "_id",
+        as: "projects",
+        pipeline:[
+           {
+              $lookup:{
+                 from:"projectmembers",
+                 localField:"_id",
+                 foreignField:"projects",
+                 as:"projectmembers",
+              }
+           },
+           {
+            $addFields:{
+               members:{
+                 $size:"$projectmembers"
+               }
+            }
+           },
+           {
+             $unwind: "$projectmembers"
+           },
+           {
+            $project:{
+              _id:1,
+              name:1,
+              description: 1,
+              members:1,
+             createdBy:1,
+             createdAt:1,
+            },
+            role:1,
+            _id:0
+           }
+        ]
+      }
+    }
+  ])
+
+  return res.status(200).json(apiResponse(true, "Projects retrieved successfully", projects));
+  }catch(error){
+    return res.status(500).json(apiResponse(false, "Failed to retrieve projects", null));
   }
 });
 
