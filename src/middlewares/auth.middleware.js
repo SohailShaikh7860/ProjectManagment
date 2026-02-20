@@ -1,3 +1,5 @@
+import mongoose from "mongoose";
+import { ProjectMember } from "../models/projectmember.model.js";
 import { User } from "../models/user.models.js";
 import { ApiError } from "../utils/api-error.js";
 import { asyncHandler } from "../utils/async.js";
@@ -37,3 +39,32 @@ export const verifyJWT = asyncHandler(async(req,res,next)=>{
   throw new ApiError(401, "Authentication failed");
     }
 })
+
+export const validateRole = (roles = []) =>{
+    asyncHandler(async (req,res, next)=>{
+        const {projectId} = req.params;
+
+        if(!projectId){
+            throw new ApiError(400, "Project ID is required");
+        }
+
+       const project =  await ProjectMember.findOne({
+           project: new mongoose.Types.ObjectId(projectId),
+           user: new mongoose.Types.ObjectId(req.user._id),
+           role: { $in: roles },
+        })
+        if(!project){
+            throw new ApiError(403, "User does not have required role");
+        }
+
+        const givenRole = project?.role
+
+        req.user.role = givenRole;
+
+        if(!roles.includes(givenRole)){
+            throw new ApiError(403, "User does not have required role");
+        }
+
+        next();
+    })
+}
