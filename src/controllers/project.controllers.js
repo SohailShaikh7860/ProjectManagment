@@ -6,6 +6,7 @@ import { asyncHandler } from "../utils/async.js";
 import mongoose from "mongoose";
 import { ProjectMember } from "../models/projectmember.model.js";
 import { UserRolesEnum } from "../utils/constatns.js";
+import { pipeline } from "nodemailer/lib/xoauth2/index.js";
 
 export const getProjects = asyncHandler(async (req, res) => {
   try{
@@ -131,5 +132,140 @@ export const deleteProject = asyncHandler(async (req,res)=>{
        return res.json(apiResponse(true, "Project deleted successfully", null));
     } catch (error) {
        return res.json(apiResponse(false, "Failed to delete project", null));
+    }
+})
+
+export const addMemberToProject = asyncHandler(async(req,res)=>{
+    const projectId = req.params.id;
+    const { email, role } = req.body;
+
+    try {
+      const user = await User.findOne({ email });
+
+      if(!user){
+        throw new ApiError(404, "User not found");
+      }
+
+      await ProjectMember.findByIdAndUpdate(
+        
+        {
+           user: new mongoose.Types.ObjectId(user._id),
+           project: new mongoose.Types.ObjectId(projectId),
+        },
+        {
+           user: new mongoose.Types.ObjectId(user._id),
+           project: new mongoose.Types.ObjectId(projectId),
+           role: role,
+        },
+        {
+          new: true,
+          upsert: true,
+        }
+      )
+
+      return res.json(apiResponse(true, "Member added to project successfully", null));
+    } catch (error) {
+      return res.json(apiResponse(false, "Failed to add member to project", null));
+    }
+})
+
+export const getProjectMembers = asyncHandler(async(req,res)=>{
+    const projectId = req.params.id;
+
+    try {
+       const members = await ProjectMember.find({ project: projectId }).populate("user", "name email");
+
+       if(!members){
+        throw new ApiError(404, "Project members not found");
+       }
+
+       const projectMembers = await ProjectMember.aggregate({
+          $match: {
+             project: new mongoose.Types.ObjectId(projectId)
+          }
+       },
+        
+       {
+          $lookup:{
+              from: "users",
+              localField: "user",
+              foreignField: "_id",
+              as: "user",
+              pipeline:[
+                 {
+                  $project:{
+                     _id: 1,
+                     username: 1,
+                    fullName:1,
+                    avatar:1
+                  }
+                 }
+              ]
+          }
+       },
+
+       {
+          $addFields:{
+              user:{
+                 $arrayElemAt: ["$user",0]
+              }
+          }
+       },
+
+       {
+         $project:{
+            project:1,
+            user:1,
+            role:1,
+            createdAt:1,
+            updatedAt:1,
+            _id:0
+         }
+       }
+      )
+      return res.json(apiResponse(true, "Project members retrieved successfully", projectMembers));
+    } catch (error) {
+      return res.json(apiResponse(false, "Failed to retrieve project members", null));
+    }
+})
+
+export const updateMemberRole = asyncHandler(async(req,res)=>{
+    const projectId = req.params.id;
+    const { userId, role } = req.body;
+
+    try {
+      const updatedMember = await ProjectMember.findOneAndUpdate(
+        { project: projectId, user: userId },
+        { role: role },
+        { new: true }
+      );
+
+      if (!updatedMember) {
+        throw new ApiError(404, "Project member not found");
+      }
+
+      return res.json(apiResponse(true, "Member role updated successfully", updatedMember));
+    } catch (error) {
+      return res.json(apiResponse(false, "Failed to update member role", null));
+    }
+})
+
+export const deleteMemberFromProject = asyncHandler(async(req,res)=>{
+    const projectId = req.params.id;
+    const { userId } = req.body;
+
+    try {
+      const deletedMember = await ProjectMember.findOneAndDelete({
+        project: projectId,
+        user: userId
+      });
+
+      if (!deletedMember) {
+        throw new ApiError(404, "Project member not found");
+      }
+
+      return res.json(apiResponse(true, "Member deleted from project successfully", null));
+    } catch (error) {
+      return res.json(apiResponse(false, "Failed to delete member from project", null));
     }
 })
