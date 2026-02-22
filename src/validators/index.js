@@ -1,4 +1,5 @@
 import { body } from "express-validator";
+import { availableRoleEnum } from "../utils/constatns.js";
 
 const userRegisterValidator = () =>{
      return [
@@ -72,10 +73,37 @@ const userResetForgotPassword = ()=>{
     ]
 }
 
+const createProjectValidator = ()=>{
+     return [
+        body("name")
+          .notEmpty()
+          .withMessage("Project name is required"),
+        body("description")
+            .optional()
+     ]
+}
+
+const addMemberToProjectValidator = ()=>{
+    return [
+        body("email")
+         .notEmpty()
+         .withMessage("Email is required")
+            .isEmail()
+            .withMessage("Email is invalid"),
+        body("role")
+         .notEmpty()
+         .withMessage("Role is required")
+         .isIn(availableRoleEnum)
+         .withMessage(`Role must be one of the following: ${availableRoleEnum.join(", ")}`)
+    ]
+}
+
 export {
     userRegisterValidator,
     userLoginValidator,
     userChangeCurrentPassword,
     userForgotPassword,
-    userResetForgotPassword
+    userResetForgotPassword,
+    createProjectValidator,
+    addMemberToProjectValidator
 }
